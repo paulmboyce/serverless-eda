@@ -17,10 +17,10 @@ import { DocumentsEvents } from "./services/documents/infra/documents-events";
 import { DocumentService } from "./services/documents/infra/documents-service";
 import { FraudEvents } from "./services/fraud/infra/fraud-events";
 import { FraudService } from "./services/fraud/infra/fraud-service";
-import { NotificationsService } from "./services/notifications/infra/notifications-service";
-import { SettlementEvents, SettlementService } from "./services/settlement/infra/settlement-service";
+// import { NotificationsService } from "./services/notifications/infra/notifications-service";
+// import { SettlementEvents, SettlementService } from "./services/settlement/infra/settlement-service";
 import { CfnDiscoverer } from "aws-cdk-lib/aws-eventschemas";
-import { VendorEvents, VendorService } from "./services/vendor/infra/vendor-service";
+// import { VendorEvents, VendorService } from "./services/vendor/infra/vendor-service";
 
 export class ClaimsProcessingStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
@@ -68,37 +68,37 @@ export class ClaimsProcessingStack extends Stack {
       claimsTable,
     });
 
-    const settlementService = new SettlementService(this, "SettlementService", {
-      bus,
-    });
+    // const settlementService = new SettlementService(this, "SettlementService", {
+    //   bus,
+    // });
 
-    const vendorService = new VendorService(this, "VendorService", {
-      bus
-    });
+    // const vendorService = new VendorService(this, "VendorService", {
+    //   bus
+    // });
 
-    new NotificationsService(this, "NotificationsService", {
-      bus,
-      customerTable,
-      eventPattern: {
-        detailType: [
-          CustomerEvents.CUSTOMER_ACCEPTED,
-          CustomerEvents.CUSTOMER_REJECTED,
-          ClaimsEvents.CLAIM_ACCEPTED,
-          ClaimsEvents.CLAIM_REJECTED,
-          DocumentsEvents.DOCUMENT_PROCESSED,
-          FraudEvents.FRAUD_DETECTED,
-          FraudEvents.FRAUD_NOT_DETECTED,
-          SettlementEvents.SETTLEMENT_FINALIZED,
-          VendorEvents.VENDOR_FINALIZED
-        ],
-      },
-    });
+    // new NotificationsService(this, "NotificationsService", {
+    //   bus,
+    //   customerTable,
+    //   eventPattern: {
+    //     detailType: [
+    //       CustomerEvents.CUSTOMER_ACCEPTED,
+    //       CustomerEvents.CUSTOMER_REJECTED,
+    //       ClaimsEvents.CLAIM_ACCEPTED,
+    //       ClaimsEvents.CLAIM_REJECTED,
+    //       DocumentsEvents.DOCUMENT_PROCESSED,
+    //       FraudEvents.FRAUD_DETECTED,
+    //       FraudEvents.FRAUD_NOT_DETECTED,
+    //       // SettlementEvents.SETTLEMENT_FINALIZED,
+    //       // VendorEvents.VENDOR_FINALIZED
+    //     ],
+    //   },
+    // });
 
     const cleanupService = new CleanupService(this, "CleanupService", {
       customerTableName: customerTable.tableName,
       policyTableName: policyTable.tableName,
       claimsTableName: claimsTable.tableName,
-      settlementTableName: settlementService.table.tableName,
+      // settlementTableName: settlementService.table.tableName,
       documentsBucketName: documentService.documentsBucket.bucketName,
     });
 
@@ -108,7 +108,7 @@ export class ClaimsProcessingStack extends Stack {
     documentService.documentsBucket.grantReadWrite(
       cleanupService.cleanupLambdaFunction
     );
-    settlementService.table.grantReadWriteData(cleanupService.cleanupLambdaFunction);
+    // settlementService.table.grantReadWriteData(cleanupService.cleanupLambdaFunction);
 
     const metricsQueueWithLambdaSubscription =
       createMetricsQueueWithLambdaSubscription(this);
@@ -124,8 +124,8 @@ export class ClaimsProcessingStack extends Stack {
           ClaimsEvents.CLAIMS_SOURCE,
           DocumentsEvents.SOURCE,
           FraudEvents.SOURCE,
-          SettlementEvents.SOURCE,
-          VendorEvents.SOURCE,
+          // SettlementEvents.SOURCE,
+          // VendorEvents.SOURCE,
           "aws.s3",
         ],
       },
@@ -142,8 +142,8 @@ export class ClaimsProcessingStack extends Stack {
         claimsService.claimsMetricsWidget,
         fraudService.fraudMetricsWidget,
         documentService.documentsMetricsWidget,
-        settlementService.settlementMetricsWidget,
-        vendorService.vendorMetricsWidget,
+        // settlementService.settlementMetricsWidget,
+        // vendorService.vendorMetricsWidget,
       ],
     });
   }
