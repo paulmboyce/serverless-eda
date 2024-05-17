@@ -42,6 +42,8 @@ class UpdateArea extends React.Component {
     });
 
     const respData = data.value.detail;
+    
+    console.log (`NOTIFICATION [${data.value["detail-type"]}]\n`, JSON.stringify(data.value, null, 2) );
 
     if (data.value["detail-type"] === "Fraud.Not.Detected" || data.value["detail-type"] === "Claim.Accepted") {
       this.updateParent("nextStep", true);
