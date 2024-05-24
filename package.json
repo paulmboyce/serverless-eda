@@ -9,11 +9,13 @@
     "watch": "tsc -w",
     "test": "jest",
     "cdk": "cdk",
+    "infra:deployhot": "cdk deploy --hotswap-fallback --watch",
     "deploy": "cdk deploy --outputs-file react-claims/src/cdk-outputs.json --all",
     "format": "npx prettier --write ."
   },
   "devDependencies": {
-    "@aws-lambda-powertools/logger": "^1.14.0",
+    "@aws-lambda-powertools/logger": "^1.18.1",
+    "@aws-lambda-powertools/tracer": "^2.1.1",
     "@aws-sdk/client-dynamodb": "^3.421.0",
     "@aws-sdk/client-eventbridge": "^3.421.0",
     "@aws-sdk/client-iot": "^3.421.0",
@@ -43,6 +45,7 @@
     "@aws-cdk/lambda-layer-kubectl-v27": "^2.0.0",
     "@aws-lambda-powertools/metrics": "^1.12.1",
     "@aws-solutions-constructs/aws-eventbridge-sqs": "^2.44.0",
+    "@middy/core": "^4.7.0",
     "aws-cdk-lib": "^2.99.1",
     "cdk-nag": "^2.27.146",
     "constructs": "^10.2.70",

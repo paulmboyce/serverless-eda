@@ -34,7 +34,7 @@ export default function createMetricsQueueWithLambdaSubscription(
     "CreateMetricsFunction",
     {
       runtime: Runtime.NODEJS_18_X,
-      logRetention: RetentionDays.ONE_WEEK,
+      logRetention: RetentionDays.ONE_DAY,
       handler: "handler",
       entry: `${__dirname}/../app/handlers/create.js`,
       role: metricsLambdaRole,

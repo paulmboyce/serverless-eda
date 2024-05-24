@@ -99,7 +99,7 @@ export class SettlementService extends Construct {
           logDriver: new ecs.AwsLogDriver({
             streamPrefix: "settlement-service",
             mode: ecs.AwsLogDriverMode.NON_BLOCKING,
-            logRetention: RetentionDays.FIVE_DAYS,
+            logRetention: RetentionDays.ONE_DAY,
           })
         },
         memoryLimitMiB: 2048,

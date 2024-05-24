@@ -114,13 +114,23 @@ export class NotificationsService extends Construct {
       "NotificationLambdaFunction",
       {
         runtime: Runtime.NODEJS_18_X,
-        memorySize: 512,
-        logRetention: RetentionDays.ONE_WEEK,
+        memorySize: 128,
+        logRetention: RetentionDays.ONE_DAY,
         handler: "handler",
         entry: `${__dirname}/../app/handlers/notifications.js`,
         environment: {
           BUS_NAME: bus.eventBusName,
           CUSTOMER_TABLE_NAME: customerTable.tableName,
+          POWERTOOLS_LOG_LEVEL: "WARN",
+          POWERTOOLS_LOGGER_LOG_LEVEL: "WARN",
+          // // AWS_LAMBDA_LOG_LEVEL:"INFO",
+          // LOG_LEVEL:"DEBUG",
+          POWERTOOLS_LOGGER_SAMPLE_RATE: "1",
+          POWERTOOLS_SERVICE_NAME: "notification.service",
+          // OnLy log handler events in non-production envs (dev|staging)
+          POWERTOOLS_LOGGER_LOG_EVENT: "false", // process.env.NODE_ENV === "production"?"false":"true",
+          // export NODE_ENV=production (etc, during builds)
+          NODE_ENV: process.env.NODE_ENV || "development"
         },
       }
     );
@@ -150,8 +160,8 @@ export class NotificationsService extends Construct {
       "UpdateIOTPolicyFunction",
       {
         runtime: Runtime.NODEJS_18_X,
-        memorySize: 512,
-        logRetention: RetentionDays.ONE_WEEK,
+        memorySize: 128,
+        logRetention: RetentionDays.ONE_DAY,
         handler: "handler",
         entry: `${__dirname}/../app/handlers/iot.index.js`,
         environment: {
@@ -164,7 +174,7 @@ export class NotificationsService extends Construct {
 
     const iotApiGWLogGroupDest = new LogGroupLogDestination(
       new LogGroup(this, "IoTAPIGWAccessLogGroup", {
-        retention: RetentionDays.ONE_WEEK,
+        retention: RetentionDays.ONE_DAY,
         removalPolicy: RemovalPolicy.DESTROY,
       })
     );

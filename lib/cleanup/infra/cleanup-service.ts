@@ -52,8 +52,8 @@ export class CleanupService extends Construct {
       "ClearAllDataFunction",
       {
         runtime: Runtime.NODEJS_18_X,
-        memorySize: 512,
-        logRetention: RetentionDays.ONE_WEEK,
+        memorySize: 128,
+        logRetention: RetentionDays.ONE_DAY,
         handler: "handler",
         entry: `${__dirname}/../app/handlers/delete.js`,
         environment: {
@@ -68,7 +68,7 @@ export class CleanupService extends Construct {
 
     const cleanupApiAccessLogGroupDest = new LogGroupLogDestination(
       new LogGroup(this, "CleanupApiAccessLogGroup", {
-        retention: RetentionDays.ONE_WEEK,
+        retention: RetentionDays.ONE_DAY,
         removalPolicy: RemovalPolicy.DESTROY,
       })
     );

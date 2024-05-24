@@ -38,7 +38,7 @@ import { FraudEvents } from "../../fraud/infra/fraud-events";
 import { CustomerEvents } from "./customer-events";
 import { CreateCustomerStepFunction } from "./step-functions/createCustomer";
 import { UpdatePolicyStepFunction } from "./step-functions/updatePolicy";
-import { CfnWebACL, CfnWebACLAssociation } from "aws-cdk-lib/aws-wafv2";
+// import { CfnWebACL, CfnWebACLAssociation } from "aws-cdk-lib/aws-wafv2";
 
 function addDefaultGatewayResponse(api: RestApi) {
   api.addGatewayResponse("default-4xx-response", {
@@ -70,7 +70,7 @@ export class CustomerService extends Construct {
 
     const apiGWLogGroupDest = new LogGroupLogDestination(
       new LogGroup(this, "SignupAPIGWLogGroup", {
-        retention: RetentionDays.ONE_WEEK,
+        retention: RetentionDays.ONE_DAY,
         removalPolicy: RemovalPolicy.DESTROY,
       })
     );
@@ -108,12 +108,19 @@ export class CustomerService extends Construct {
       "SignupLambdaFunction",
       {
         runtime: Runtime.NODEJS_18_X,
-        memorySize: 512,
-        logRetention: RetentionDays.ONE_WEEK,
+        memorySize: 128,
+        logRetention: RetentionDays.ONE_DAY,
         handler: "handler",
         entry: `${__dirname}/../app/handlers/signup.js`,
         environment: {
           BUS_NAME: bus.eventBusName,
+          POWERTOOLS_LOG_LEVEL: "DEBUG",
+          POWERTOOLS_LOGGER_SAMPLE_RATE: "1",
+          POWERTOOLS_SERVICE_NAME: "SIGNUP.service",
+          // OnLy log events in non-production envs (dev|staging)
+          POWERTOOLS_LOGGER_LOG_EVENT: process.env.NODE_ENV === "production"?"false":"true",
+          // export NODE_ENV=production (etc, during builds)
+          NODE_ENV: process.env.NODE_ENV || "development"
         },
       }
     );
@@ -135,14 +142,21 @@ export class CustomerService extends Construct {
       "CustomerUpdateLambdaFunction",
       {
         runtime: Runtime.NODEJS_18_X,
-        memorySize: 512,
-        logRetention: RetentionDays.ONE_WEEK,
+        memorySize: 128,
+        logRetention: RetentionDays.ONE_DAY,
         handler: "handler",
         entry: `${__dirname}/../app/handlers/update.js`,
         role: customerLambdaRole,
         environment: {
           BUS_NAME: bus.eventBusName,
           CUSTOMER_TABLE_NAME: this.customerTable.tableName,
+          POWERTOOLS_LOG_LEVEL: "DEBUG",
+          POWERTOOLS_LOGGER_SAMPLE_RATE: "1",
+          POWERTOOLS_SERVICE_NAME: "customer.service",
+          // OnLy log events in non-production envs (dev|staging)
+          POWERTOOLS_LOGGER_LOG_EVENT: process.env.NODE_ENV === "production"?"false":"true",
+          // export NODE_ENV=production (etc, during builds)
+          NODE_ENV: process.env.NODE_ENV || "development"
         },
       }
     );
@@ -152,8 +166,8 @@ export class CustomerService extends Construct {
 
     const validatorFunction = new NodejsFunction(scope, "ValidatorFunction", {
       runtime: Runtime.NODEJS_18_X,
-      memorySize: 512,
-      logRetention: RetentionDays.ONE_WEEK,
+      memorySize: 128,
+      logRetention: RetentionDays.ONE_DAY,
       handler: "handler",
       entry: `${__dirname}/../app/handlers/validator.js`,
     });
@@ -163,8 +177,8 @@ export class CustomerService extends Construct {
       "PutPolicyRequestsFunction",
       {
         runtime: Runtime.NODEJS_18_X,
-        memorySize: 512,
-        logRetention: RetentionDays.ONE_WEEK,
+        memorySize: 128,
+        logRetention: RetentionDays.ONE_DAY,
         handler: "handler",
         entry: `${__dirname}/../app/handlers/putPolicyRequests.js`,
       }
@@ -175,8 +189,8 @@ export class CustomerService extends Construct {
       "PreSignedURLGenerator",
       {
         runtime: Runtime.NODEJS_18_X,
-        memorySize: 512,
-        logRetention: RetentionDays.ONE_WEEK,
+        memorySize: 128,
+        logRetention: RetentionDays.ONE_DAY,
         handler: "handler",
         entry: `${__dirname}/../app/handlers/preSignedURLGenerator.js`,
       }
@@ -212,8 +226,8 @@ export class CustomerService extends Construct {
       "GetCustomerFunction",
       {
         runtime: Runtime.NODEJS_18_X,
-        memorySize: 512,
-        logRetention: RetentionDays.ONE_WEEK,
+        memorySize: 128,
+        logRetention: RetentionDays.ONE_DAY,
         handler: "handler",
         entry: `${__dirname}/../app/handlers/get.js`,
         environment: {
@@ -247,7 +261,7 @@ export class CustomerService extends Construct {
     );
 
     addDefaultGatewayResponse(signupApi);
-    addWebAcl(this, signupApi.deploymentStage.stageArn, "SignupApiWebACL");
+    // addWebAcl(this, signupApi.deploymentStage.stageArn, "SignupApiWebACL");
 
     const customerApi = new RestApi(scope, "CustomerApi", {
       endpointConfiguration: {
@@ -270,7 +284,7 @@ export class CustomerService extends Construct {
     );
 
     addDefaultGatewayResponse(customerApi);
-    addWebAcl(this, customerApi.deploymentStage.stageArn, "GetCustomerApiWebACL");
+    // addWebAcl(this, customerApi.deploymentStage.stageArn, "GetCustomerApiWebACL");
 
     new Rule(this, "CreateCustomerEventsRule", {
       eventBus: bus,
@@ -329,37 +343,38 @@ export class CustomerService extends Construct {
   }
 }
 
-function addWebAcl(scope: Construct, stageArn: string, webAcl: string) {
-  const xssWebAcl = new CfnWebACL(scope, webAcl, {
-    defaultAction: { allow: {} },
-    scope: "REGIONAL",
-    visibilityConfig: {
-      sampledRequestsEnabled: true,
-      cloudWatchMetricsEnabled: true,
-      metricName: `MetricFor${webAcl}`
-    },
-    rules: [
-      {
-        name: "AWS-AWSManagedRulesCommonRuleSet",
-        priority: 0,
-        overrideAction: { none: {} },
-        visibilityConfig: {
-          sampledRequestsEnabled: true,
-          cloudWatchMetricsEnabled: true,
-          metricName: `MetricFor${webAcl}-CRS`
-        },
-        statement: {
-          managedRuleGroupStatement: {
-            name: "AWSManagedRulesCommonRuleSet",
-            vendorName: "AWS",
-          },
-        },
-      },
-    ],
-  });
+// function addWebAcl(scope: Construct, stageArn: string, webAcl: string) {
+//   const xssWebAcl = new CfnWebACL(scope, webAcl, {
+//     defaultAction: { allow: {} },
+//     scope: "REGIONAL",
+//     visibilityConfig: {
+//       sampledRequestsEnabled: true,
+//       cloudWatchMetricsEnabled: true,
+//       metricName: `MetricFor${webAcl}`
+//     },
+//     rules: [
+//       {
+//         name: "AWS-AWSManagedRulesCommonRuleSet",
+//         priority: 0,
+//         overrideAction: { none: {} },
+//         visibilityConfig: {
+//           sampledRequestsEnabled: true,
+//           cloudWatchMetricsEnabled: true,
+//           metricName: `MetricFor${webAcl}-CRS`
+//         },
+//         statement: {
+//           managedRuleGroupStatement: {
+//             name: "AWSManagedRulesCommonRuleSet",
+//             vendorName: "AWS",
+//           },
+//         },
+//       },
+//     ],
+//   });
 
-  new CfnWebACLAssociation(scope, `${webAcl}Association`, {
-    resourceArn: stageArn,
-    webAclArn: xssWebAcl.attrArn,
-  });
-}
+  // new CfnWebACLAssociation(scope, `${webAcl}Association`, {
+  //   resourceArn: stageArn,
+  //   webAclArn: xssWebAcl.attrArn,
+  // });
+
+// }

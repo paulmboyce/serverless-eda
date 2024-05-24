@@ -45,8 +45,8 @@ export class FraudService extends Construct {
       "FraudDetectorLambda",
       {
         runtime: Runtime.NODEJS_18_X,
-        memorySize: 512,
-        logRetention: RetentionDays.ONE_WEEK,
+        memorySize: 128,
+        logRetention: RetentionDays.ONE_DAY,
         handler: "handler",
         entry: `${__dirname}/../app/handlers/fraudDetection.js`,
         environment: {
@@ -54,6 +54,13 @@ export class FraudService extends Construct {
           CUSTOMER_TABLE_NAME: props.customerTable.tableName,
           CLAIMS_TABLE_NAME: props.claimsTable.tableName,
           POLICY_TABLE_NAME: props.policyTable.tableName,
+          POWERTOOLS_LOG_LEVEL: "DEBUG",
+          POWERTOOLS_LOGGER_SAMPLE_RATE: "1",
+          POWERTOOLS_SERVICE_NAME: "fraud.service",
+          // OnLy log events in non-production envs (dev|staging)
+          POWERTOOLS_LOGGER_LOG_EVENT: process.env.NODE_ENV === "production"?"false":"true",
+          // export NODE_ENV=production (etc, during builds)
+          NODE_ENV: process.env.NODE_ENV || "development"
         },
       }
     );

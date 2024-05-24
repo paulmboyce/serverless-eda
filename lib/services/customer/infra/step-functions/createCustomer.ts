@@ -53,7 +53,7 @@ export class CreateCustomerStepFunction extends StateMachine {
     const logGroup = new logs.LogGroup(scope, "CreateCustomerSFLogGroup", {
       logGroupName: "/aws/vendedlogs/states/CreateCustomerSFN",
       removalPolicy: RemovalPolicy.DESTROY,
-      retention: RetentionDays.FIVE_DAYS
+      retention: RetentionDays.ONE_DAY
     });
 
     const parseDataState = createParseDataState(scope);
@@ -99,7 +99,7 @@ export class CreateCustomerStepFunction extends StateMachine {
       logs: {
         destination: logGroup,
         level: LogLevel.ALL,
-        includeExecutionData: true,
+        includeExecutionData: false,
       },
       tracingEnabled: true,
     });
@@ -131,6 +131,7 @@ function createPutCustomerAcceptedEventStep(
         entries: [
           {
             detail: TaskInput.fromObject({
+              "meta.$": "$.meta",
               "customerId.$": "$.uuid.uuid",
               "driversLicenseImageUrl.$": "$.presignedURLs.dlURL",
               "carImageUrl.$": "$.presignedURLs.vehicleURL",
@@ -299,6 +300,7 @@ function createAcceptCustomerChoice(
           detail: TaskInput.fromObject({
             "cognitoIdentityId.$": "$.cognitoIdentityId",
             message: "Address or Identity Validation Failed",
+            "meta.$": "$.meta",
           }),
           eventBus: props.eventBus,
           detailType: "Customer.Rejected",
@@ -428,6 +430,7 @@ function createParseDataState(scope: Construct): Pass {
       "PK.$": "$.id",
       "SK.$": "$.detail-type",
       "data.$": "$.detail.data",
+      "meta.$": "$.detail.meta",
       "cognitoIdentityId.$": "$.detail.cognitoIdentityId",
     },
   });

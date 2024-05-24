@@ -22,7 +22,7 @@ export class UpdateClaimsStepFunction extends StateMachine {
     const logGroup = new logs.LogGroup(scope, "UpdateClaimsSFLogGroup", {
       logGroupName: "/aws/vendedlogs/states/UpdateClaimsSFN",
       removalPolicy: RemovalPolicy.DESTROY,
-      retention: RetentionDays.FIVE_DAYS
+      retention: RetentionDays.ONE_DAY
     });
 
     const updateItemProps: DynamoUpdateItemProps = {
@@ -53,7 +53,7 @@ export class UpdateClaimsStepFunction extends StateMachine {
       logs: {
         destination: logGroup,
         level: LogLevel.ALL,
-        includeExecutionData: true,
+        includeExecutionData: false,
       },
       tracingEnabled: true,
     });

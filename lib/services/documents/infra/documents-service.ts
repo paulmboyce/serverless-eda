@@ -109,6 +109,9 @@ export class DocumentService extends Construct {
           source: "document.service",
           eventBus: props?.bus,
           detail: TaskInput.fromObject({
+            meta: {
+              correlationId: JsonPath.stringAt("$.detail.request-id")
+            },
             documentType: "CAR",
             customerId: JsonPath.stringAt("$.customerId"),
             analyzedFieldAndValues: JsonPath.objectAt(
@@ -153,7 +156,7 @@ export class DocumentService extends Construct {
       {
         runtime: Runtime.NODEJS_18_X,
         memorySize: 128,
-        logRetention: RetentionDays.ONE_WEEK,
+        logRetention: RetentionDays.ONE_DAY,
         handler: "handler",
         entry: `${__dirname}/../app/handlers/textractResponseTransformer.js`,
         timeout: Duration.seconds(10),
@@ -193,6 +196,9 @@ export class DocumentService extends Construct {
                 "$.transformedResponse.analyzeIDtransformedResponse"
               ),
               customerId: JsonPath.stringAt("$.customerId"),
+              meta: {
+                correlationId: JsonPath.stringAt("$.detail.request-id")
+              },
             }),
           },
         ],
@@ -204,7 +210,7 @@ export class DocumentService extends Construct {
       "analyzeCarImageFunction",
       {
         runtime: Runtime.NODEJS_18_X,
-        logRetention: RetentionDays.ONE_WEEK,
+        logRetention: RetentionDays.ONE_DAY,
         handler: "handler",
         entry: `${__dirname}/../app/handlers/analyzeCarImage.js`,
         environment: {
@@ -255,7 +261,7 @@ export class DocumentService extends Construct {
       this,
       "DocumentProcessingLogs",
       {
-        retention: RetentionDays.FIVE_DAYS,
+        retention: RetentionDays.ONE_DAY,
         removalPolicy: RemovalPolicy.DESTROY,
         logGroupName: "/aws/vendedlogs/states/DocumentProcessingSFN"
       }
@@ -271,7 +277,7 @@ export class DocumentService extends Construct {
         logs: {
           level: LogLevel.ALL,
           destination: documentProcessingLogs,
-          includeExecutionData: true,
+          includeExecutionData: false,
         },
         tracingEnabled: true,
       }

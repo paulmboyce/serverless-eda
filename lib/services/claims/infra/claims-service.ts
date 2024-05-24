@@ -35,7 +35,11 @@ import {
 import { FraudEvents } from "../../fraud/infra/fraud-events";
 import { ClaimsEvents } from "./claims-events";
 import { UpdateClaimsStepFunction } from "./step-functions/updateClaims";
-import { CfnWebACL, CfnWebACLAssociation } from "aws-cdk-lib/aws-wafv2";
+// import { CfnWebACL, CfnWebACLAssociation } from "aws-cdk-lib/aws-wafv2";
+
+import { LayerVersion, Tracing }  from 'aws-cdk-lib/aws-lambda';
+
+const layerLambdaInsightsExtensionArn = 'arn:aws:lambda:eu-west-1:580247275435:layer:LambdaInsightsExtension:52';
 
 interface ClaimsServiceProps {
   bus: EventBus;
@@ -55,11 +59,13 @@ export class ClaimsService extends Construct {
   constructor(scope: Construct, id: string, props: ClaimsServiceProps) {
     super(scope, id);
 
+    const lambdaInsightsExtensionLayer = LayerVersion.fromLayerVersionArn(this, 'LayerFromlayerLambdaInsightsExtensionArn', layerLambdaInsightsExtensionArn);
+
     const bus = props.bus;
 
     const apiGWLogGroupDest = new LogGroupLogDestination(
       new LogGroup(this, "APIGWLogGroup", {
-        retention: RetentionDays.ONE_WEEK,
+        retention: RetentionDays.ONE_DAY,
         removalPolicy: RemovalPolicy.DESTROY,
       })
     );
@@ -92,20 +98,36 @@ export class ClaimsService extends Construct {
     // Create SQS for Claims Service
     const claimsQueue = new Queue(this, "ClaimsQueue", { enforceSSL: true });
 
+
     // Create FNOL Lambda function
     const firstNoticeOfLossLambda = new NodejsFunction(this, "FNOLLambda", {
       runtime: Runtime.NODEJS_18_X,
-      memorySize: 512,
-      logRetention: RetentionDays.ONE_WEEK,
+      memorySize: 128,
+      layers: [lambdaInsightsExtensionLayer],
+      tracing: Tracing.ACTIVE,
+      logRetention: RetentionDays.ONE_DAY,
       handler: "handler",
       entry: `${__dirname}/../app/handlers/fnol.js`,
       environment: {
         BUS_NAME: bus.eventBusName,
+        POWERTOOLS_TRACE_ENABLED: "true",
+        POWERTOOLS_TRACER_CAPTURE_HTTPS_REQUESTS: "true",
+        POWERTOOLS_TRACER_CAPTURE_ERROR: "true",
+        POWERTOOLS_TRACER_CAPTURE_RESPONSE: "false", // could contain sensitive data
+        POWERTOOLS_LOG_LEVEL: "DEBUG",
+        POWERTOOLS_LOGGER_SAMPLE_RATE: "1",
+        POWERTOOLS_SERVICE_NAME: "fnol.service",
+        // OnLy log events in non-production envs (dev|staging)
+        POWERTOOLS_LOGGER_LOG_EVENT: process.env.NODE_ENV === "production"?"false":"true",
+        // export NODE_ENV=production (etc, during builds)
+        NODE_ENV: process.env.NODE_ENV || "development"
       },
     });
 
     firstNoticeOfLossLambda.addToRolePolicy(lambdaToPutEventsPolicy);
-
+    firstNoticeOfLossLambda.role?.addManagedPolicy(
+      ManagedPolicy.fromAwsManagedPolicyName('CloudWatchLambdaInsightsExecutionRolePolicy')
+     );
     // Create Claims FNOL POST API
     const fnolApi = new RestApi(this, "FnolApi", {
       endpointConfiguration: {
@@ -129,7 +151,7 @@ export class ClaimsService extends Construct {
     );
 
     addDefaultGatewayResponse(fnolApi);
-    addWebAcl(this, fnolApi.deploymentStage.stageArn, "FnolApiWebACL");
+    // addWebAcl(this, fnolApi.deploymentStage.stageArn, "FnolApiWebACL");
 
     const claimsLambdaRole = new Role(this, "ClaimsQueueConsumerFunctionRole", {
       assumedBy: new ServicePrincipal("lambda.amazonaws.com"),
@@ -148,8 +170,8 @@ export class ClaimsService extends Construct {
       "ClaimsLambdaFunction",
       {
         runtime: Runtime.NODEJS_18_X,
-        memorySize: 512,
-        logRetention: RetentionDays.ONE_WEEK,
+        memorySize: 128,
+        logRetention: RetentionDays.ONE_DAY,
         handler: "handler",
         entry: `${__dirname}/../app/handlers/claimsProcessing.js`,
         role: claimsLambdaRole,
@@ -159,6 +181,14 @@ export class ClaimsService extends Construct {
           CLAIMS_TABLE_NAME: this.claimsTable.tableName,
           POLICY_TABLE_NAME: props.policyTable.tableName,
           CUSTOMER_TABLE_NAME: props.customerTable.tableName,
+          POWERTOOLS_LOG_LEVEL: "DEBUG",
+          POWERTOOLS_LOGGER_SAMPLE_RATE: "1",
+          POWERTOOLS_SERVICE_NAME: "CLAIMS.service",
+          // OnLy log events in non-production envs (dev|staging)
+          POWERTOOLS_LOGGER_LOG_EVENT: process.env.NODE_ENV === "production"?"false":"true",
+          // export NODE_ENV=production (etc, during builds)
+          NODE_ENV: process.env.NODE_ENV || "development"
+  
         },
       }
     );
@@ -226,37 +256,37 @@ export class ClaimsService extends Construct {
   }
 }
 
-function addWebAcl(scope: Construct, stageArn: string, webAcl: string) {
-  const xssWebAcl = new CfnWebACL(scope, webAcl, {
-    defaultAction: { allow: {} },
-    scope: "REGIONAL",
-    visibilityConfig: {
-      sampledRequestsEnabled: true,
-      cloudWatchMetricsEnabled: true,
-      metricName: `MetricFor${webAcl}`
-    },
-    rules: [
-      {
-        name: "AWS-AWSManagedRulesCommonRuleSet",
-        priority: 0,
-        overrideAction: { none: {} },
-        visibilityConfig: {
-          sampledRequestsEnabled: true,
-          cloudWatchMetricsEnabled: true,
-          metricName: `MetricFor${webAcl}-CRS`
-        },
-        statement: {
-          managedRuleGroupStatement: {
-            name: "AWSManagedRulesCommonRuleSet",
-            vendorName: "AWS",
-          },
-        },
-      },
-    ],
-  });
+// function addWebAcl(scope: Construct, stageArn: string, webAcl: string) {
+//   const xssWebAcl = new CfnWebACL(scope, webAcl, {
+//     defaultAction: { allow: {} },
+//     scope: "REGIONAL",
+//     visibilityConfig: {
+//       sampledRequestsEnabled: true,
+//       cloudWatchMetricsEnabled: true,
+//       metricName: `MetricFor${webAcl}`
+//     },
+//     rules: [
+//       {
+//         name: "AWS-AWSManagedRulesCommonRuleSet",
+//         priority: 0,
+//         overrideAction: { none: {} },
+//         visibilityConfig: {
+//           sampledRequestsEnabled: true,
+//           cloudWatchMetricsEnabled: true,
+//           metricName: `MetricFor${webAcl}-CRS`
+//         },
+//         statement: {
+//           managedRuleGroupStatement: {
+//             name: "AWSManagedRulesCommonRuleSet",
+//             vendorName: "AWS",
+//           },
+//         },
+//       },
+//     ],
+//   });
 
-  new CfnWebACLAssociation(scope, `${webAcl}Association`, {
-    resourceArn: stageArn,
-    webAclArn: xssWebAcl.attrArn,
-  });
-}
+  // new CfnWebACLAssociation(scope, `${webAcl}Association`, {
+  //   resourceArn: stageArn,
+  //   webAclArn: xssWebAcl.attrArn,
+  // });
+// }
